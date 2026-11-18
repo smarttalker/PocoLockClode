@@ -1,0 +1,49 @@
+name: Android build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Исходники лежат в репозитории как PhoneLock.zip (залит вручную через
+      # "Add file -> Upload files"), а не как обычное дерево файлов — так его
+      # можно было загрузить с телефона одним файлом. Тут он распаковывается.
+      - name: Unzip project sources
+        run: |
+          if [ ! -f PhoneLock.zip ]; then
+            echo "::error::PhoneLock.zip не найден в корне репозитория"
+            exit 1
+          fi
+          unzip -o PhoneLock.zip -d .
+          ls -la PhoneLock
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # В архиве нет gradlew/gradle-wrapper.jar — gradle/actions/setup-gradle
+      # сам ставит нужный Gradle и кэширует его между запусками.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Build debug APK
+        working-directory: PhoneLock
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoneLock-debug
+          path: PhoneLock/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
